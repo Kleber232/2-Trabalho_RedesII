@@ -1,0 +1,10 @@
+certs/server.crt
+certs/server.key
+www/*.bin
+.venv/
+__pycache__/
+*.py[cod]
+C*/
+report.aux
+report.log
+report.out

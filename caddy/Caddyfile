@@ -1,0 +1,8 @@
+:443 {
+    tls /etc/caddy/certs/server.crt /etc/caddy/certs/server.key
+    root * /srv
+    file_server
+    header {
+        Cache-Control "no-store, no-cache, must-revalidate"
+    }
+}
