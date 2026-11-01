@@ -35,7 +35,7 @@
   \large HTTP/1.1, HTTP/2 e HTTP/3 em Ambiente Emulado
 }
 \author{
-  Kleber Moura de Jesus\\
+  Kleber Moura de Jesus e Vinicius Andrade de Sousa\\
   Universidade Federal do Piauí -- CSHNB\\
   Redes II
 }
@@ -91,40 +91,93 @@ mesma conexão. Isso elimina o bloqueio de aplicação próprio da sequência de
 HTTP/1.1, mas não elimina a entrega ordenada do TCP. Uma perda de segmento pode atrasar
 a entrega dos bytes subsequentes da conexão, inclusive bytes pertencentes a outros streams.
 
-\subsection{TCP CUBIC -- Tanenbaum \S 6.5.11}
+\subsection{TCP CUBIC e controle de congestionamento}
 
-TCP CUBIC ajusta a janela de congestionamento usando uma função cúbica do tempo desde o
-último evento de congestionamento. Após detectar perda, o algoritmo reduz a janela e tenta
-retomar o crescimento de forma mais rápida perto do valor de janela anterior, mantendo uma
-curva de crescimento mais suave quando se afasta daquele ponto. Em uma WAN emulada com
-perdas estocásticas, perdas repetidas podem provocar novas reduções antes de a janela
-recuperar o nível necessário para preencher o caminho. O RTT também aumenta o tempo
-necessário para receber confirmações e retransmitir dados. A consequência esperada é a
-redução da vazão TCP útil em T04 e T05, não porque a cifragem TLS altere o algoritmo CUBIC,
-mas porque ambos dependem de TCP e enfrentam a mesma perda do caminho. A magnitude dessa
-diferença é resultado experimental.
+Tanenbaum e Wetherall \cite{tanenbaum} descrevem (p.~363--364) o controle de
+congestionamento clássico do TCP como uma regra AIMD: a janela de congestionamento cresce
+linearmente, um segmento por RTT, e é reduzida pela metade quando uma perda é detectada por
+confirmações duplicadas, o que produz o padrão ``dente de serra'' do TCP Reno (Figura 6.41 do
+livro). O texto observa que, desde meados da década de 1990, surgiram variações que seguem
+esses princípios com leis de controle ligeiramente diferentes, e cita expressamente que o
+Linux usa o CUBIC TCP \cite{ha2008} (p.~364). No capítulo ``O futuro do TCP''
+(p.~365--366), os autores ressaltam que essa forma de controle, a mais usada, toma a perda de
+pacote como sinal de congestionamento e, pelo modelo de Padhye et al. (1998) que eles citam,
+a taxa de perda compatível com uma dada vazão cai rapidamente quando a velocidade aumenta:
+para 1~Gbps, RTT de 100~ms e pacotes de 1.500 bytes, admite-se cerca de uma perda a cada 10
+minutos, isto é, uma taxa da ordem de $2\times10^{-8}$. Qualquer outra fonte de perda
+domina esse valor e passa a limitar a vazão (p.~365--366).
+
+O livro não detalha a função de crescimento do CUBIC. Pela definição de Ha et al.
+\cite{ha2008} e pela RFC~8312 \cite{rfc8312}, após uma perda a janela é reduzida e passa a
+seguir $W(t)=C\,(t-K)^3+W_{\max}$, em que $t$ é o tempo real decorrido desde a última
+redução, $W_{\max}$ é a janela imediatamente anterior a essa redução e $K$ é o instante em
+que a curva volta a $W_{\max}$. A janela cresce rápido longe de $W_{\max}$, quase estaciona
+perto dele e depois volta a crescer; como depende do tempo decorrido, e não do número de ACKs,
+o crescimento não é acelerado pelo RTT. Em WAN com perdas estocásticas de 2\%, a janela mal
+tem tempo de se aproximar de $W_{\max}$ antes da perda seguinte, e a RFC~8312 prescreve que,
+com janelas pequenas, o CUBIC se comporte como o Reno (região ``TCP-friendly''). Por isso, o
+modelo dente de serra do livro é a referência adequada para T04 e T05.
+
+Com 2\% de perda, o caminho emulado apresenta uma taxa cerca de $10^{6}$ vezes maior que a
+$2\times10^{-8}$ citada no livro: a perda estocástica injetada pelo \texttt{netem} domina por
+completo o sinal de congestionamento, e cada perda isolada é interpretada como
+congestionamento e provoca nova redução da janela. A consequência esperada é o colapso da
+vazão TCP em T04 e T05, não porque a cifragem TLS altere o algoritmo, mas porque ambos
+dependem de TCP e enfrentam a mesma perda do caminho. A magnitude é resultado experimental.
 
 Essa interpretação depende da implementação e do sistema operacional do servidor que envia
 os dados. O comportamento de controle de congestionamento não pode ser atribuído apenas ao
 cliente HTTP nem inferido da porcentagem nominal de perda; deve ser tratado como uma
 explicação compatível com o mecanismo TCP observado.
 
-\subsection{QUIC e BBR -- Tanenbaum \S\S 6.6.1--6.6.2}
+\subsection{QUIC, BBR e problemas de desempenho}
 
-QUIC integra TLS 1.3 ao estabelecimento de transporte sobre UDP e oferece streams
-independentes. Diferentemente da entrega ordenada global do TCP, a perda de dados de um
-stream QUIC não exige que dados já recebidos de outros streams aguardem a retransmissão
-daquele stream. Essa propriedade reduz o bloqueio de início de linha (HoL blocking) entre
-streams de HTTP/3, mas não elimina bloqueios dentro do mesmo stream, perdas, retransmissões
-ou contenção de congestionamento compartilhado pela conexão.
+\emph{Nota sobre a edição.} Na 5.\textsuperscript{a} edição em português do livro \cite{tanenbaum}, as
+seções usadas têm os títulos ``O futuro do TCP'' (p.~365--366),
+``Problemas de desempenho em redes de computadores'' (p.~366--367) e ``Medição do
+desempenho da rede'' (p.~367--368). Essa edição (2011) é anterior ao QUIC e ao BBR e
+não os descreve; por isso, o livro é usado aqui para os fundamentos que eles retomam, e QUIC e
+BBR são fundamentados nas RFCs~9000, 9001 e 9114 e em Cardwell et al. \cite{bbr2016}.
 
-O BBR estima a largura de banda do gargalo e o RTT mínimo para controlar o ritmo de envio,
-em vez de usar cada perda isolada como único sinal de congestionamento. Esse princípio pode
-ajudar a explicar resiliência em enlaces com perdas não necessariamente causadas por
-congestionamento. Contudo, QUIC não implica que BBR esteja ativo: o algoritmo selecionado
-depende da implementação do servidor QUIC. Como a configuração e a versão usadas neste
-experimento não confirmaram BBR, não se atribuem a esse algoritmo os resultados de T06,
+\emph{Limitações do TCP e streams.} O livro (p.~365) afirma que o TCP não oferece a
+semântica de transporte desejada por todas as aplicações, citando como exemplo o navegador Web
+que transfere vários objetos de um mesmo servidor (``um grupo de conversações relacionadas''),
+e menciona o SCTP e o SST (\emph{Structured Stream Transport}) como propostas de novos
+protocolos. Essa é a motivação conceitual dos streams independentes: o QUIC \cite{rfc9000}
+integra TLS 1.3 \cite{rfc9001} ao estabelecimento do transporte sobre UDP e, diferentemente da
+entrega ordenada global do TCP, a perda de dados de um stream não obriga que dados já recebidos
+de outros streams aguardem a retransmissão. Isso reduz o bloqueio de início de linha (HoL
+blocking) entre streams de HTTP/3 \cite{rfc9114}, mas não elimina bloqueios dentro do mesmo
+stream, perdas, retransmissões ou contenção de congestionamento compartilhada pela conexão.
+
+\emph{Sinal de congestionamento.} Ainda nesse capítulo (p.~366), o livro indica como alternativa
+um controle em que o sinal não é a perda de pacote, por exemplo o tempo de ida e volta (FAST
+TCP). O BBR \cite{bbr2016} segue essa linha geral: estima a largura de banda do gargalo e o
+RTT mínimo para controlar o ritmo de envio, em vez de usar cada perda isolada como único
+sinal de congestionamento. Esse princípio pode ajudar a explicar resiliência em enlaces com
+perdas não causadas por congestionamento. Contudo, QUIC não implica que BBR esteja ativo: o
+algoritmo depende da implementação do servidor QUIC. Como a configuração e a versão usadas
+neste experimento não confirmaram BBR, não se atribuem a esse algoritmo os resultados de T06,
 T09 ou T12.
+
+\emph{Desempenho e recursos do host.} O livro (p.~366--367) lembra que o desempenho também é
+prejudicado por desequilíbrio de recursos: se o host não processa os pacotes com a rapidez
+necessária, alguns são descartados e retransmitidos, o que aumenta o atraso, desperdiça banda
+e reduz o desempenho; a falta de ajuste (buffers, temporizadores) tem efeito semelhante. Esse
+mecanismo é relevante para interpretar T03 e a carga B em LAN, em que o cliente Python e a
+pilha QUIC em espaço de usuário podem ser o gargalo.
+
+\subsection{Medição de desempenho}
+
+O livro (p.~367--368) lista armadilhas que a medição sistemática deve evitar: amostras em
+número insuficiente, amostras não representativas (repetir em dias e horários distintos),
+\emph{caching} e \emph{buffering} que invalidam a medida, eventos inesperados durante os
+testes, uso inadequado da resolução do relógio e extrapolação dos resultados além da faixa
+medida. Este trabalho responde a essas recomendações do seguinte modo: o cliente não faz
+cache e solicita \texttt{no-store}; os tempos usam contador monotônico de nanossegundos,
+convertido para microssegundos; e há duas rodadas completas em horários distintos do mesmo
+dia. Em contrapartida, cinco repetições por teste ficam aquém do tamanho de amostra
+recomendado pelo livro, e as conclusões não devem ser extrapoladas para outras condições.
 
 \section{Metodologia}
 
@@ -255,7 +308,7 @@ a afirmação de que HTTP/3 seja sempre mais rápido.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.88\textwidth]{ttfb.png}
+\includegraphics[width=0.88\textwidth]{../results/20261020T205948Z-881/plots/ttfb.png}
 \caption{TTFB por protocolo, carga e cenário na segunda rodada. Barras de erro: $\pm$ um
 desvio-padrão entre cinco repetições.}
 \label{fig:ttfb}
@@ -263,7 +316,7 @@ desvio-padrão entre cinco repetições.}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.88\textwidth]{total_load.png}
+\includegraphics[width=0.88\textwidth]{../results/20261020T205948Z-881/plots/total_load.png}
 \caption{Tempo total da carga por protocolo, carga e cenário na segunda rodada. Barras de
 erro: $\pm$ um desvio-padrão entre cinco repetições.}
 \label{fig:total}
@@ -271,7 +324,7 @@ erro: $\pm$ um desvio-padrão entre cinco repetições.}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.88\textwidth]{rps.png}
+\includegraphics[width=0.88\textwidth]{../results/20261020T205948Z-881/plots/rps.png}
 \caption{RPS por protocolo, carga e cenário na segunda rodada. Barras de erro: $\pm$ um
 desvio-padrão entre cinco repetições.}
 \label{fig:rps}
@@ -310,16 +363,26 @@ respectivamente, usando MB decimal e o tempo médio da carga. O resultado de T03
 esta implementação HTTP/3/aioquic foi bem mais lenta que as implementações TCP no cenário
 LAN de objeto grande. Ele não prova que QUIC como protocolo seja intrinsecamente mais lento:
 diferenças de implementação, cópias e processamento em espaço de usuário, configuração e
-limites do host podem contribuir.
+limites do host podem contribuir. Tanenbaum (p.~366--367) observa que um host sem
+recursos suficientes para processar os pacotes recebidos provoca descartes e retransmissões
+que reduzem o desempenho, o que é compatível com um cliente \texttt{aioquic} limitado por CPU.
 
 Na WAN, os tempos médios foram 164,739 s (T04), 159,564 s (T05) e 110,153 s (T06), ou
 aproximadamente 0,304, 0,313 e 0,454 MB/s. HTTP/3 teve maior vazão efetiva e menor duração
 neste conjunto. A configuração injetou 2\% de perda na saída dos servidores e 25 ms de atraso
 em cada sentido. A forte diferença entre LAN e WAN é compatível com o impacto de RTT e perda
-na recuperação de transporte. É coerente discutir CUBIC para T04/T05 se o kernel Linux de fato
-usou o algoritmo padrão esperado, mas o experimento não registrou diretamente o algoritmo
-TCP ativo nem a evolução da janela de congestionamento. Assim, a associação com CUBIC é uma
-interpretação teórica, não uma variável medida.
+na recuperação de transporte. Seguindo o padrão dente de serra do AIMD (Tanenbaum,
+p.~363--364), uma perda a cada 50 pacotes ($p=2\%$) mantém a janela em poucas dezenas de
+segmentos: com $W\approx\sqrt{8/(3p)}\approx 12$ segmentos, MSS de cerca de 1.448 bytes e
+RTT de 50 ms, a vazão média $\approx 0{,}75\,W\cdot\mathrm{MSS}/\mathrm{RTT}$ fica em torno de
+0,25 MB/s. Esta é uma estimativa de ordem de grandeza feita pelos autores a partir do modelo
+dente de serra, não uma equação do livro, mas é da mesma ordem dos 0,30 e 0,31 MB/s medidos
+em T04 e T05. Como destaca o livro (p.~365--366), o sinal de perda perde utilidade quando
+outras fontes de perda o dominam; aqui, a perda estocástica injetada é cerca de $10^{6}$ vezes
+maior que a taxa de $2\times10^{-8}$ citada pelo livro para 1 Gbps. É coerente discutir CUBIC
+para T04/T05 se o kernel Linux de fato usou o algoritmo padrão esperado, mas o experimento não
+registrou diretamente o algoritmo TCP ativo nem a evolução da janela de congestionamento.
+Assim, a associação com CUBIC é uma interpretação teórica, não uma variável medida.
 
 Em Carga A há somente uma requisição por amostra; o campo RPS é essencialmente o inverso
 da duração daquela transferência e não é uma métrica apropriada para comparar vazão de
@@ -340,8 +403,9 @@ O TTFB p50 por requisição foi aproximadamente 4,15 s, 0,762 s e 0,149 s. O pad
 compatível com custo de RTT e serialização em HTTP/1.1, com multiplexação em HTTP/2, e com
 streams independentes de QUIC reduzindo o bloqueio entre streams. Ainda assim, T12 teve
 desvio-padrão de cerca de 37,9 RPS entre repetições e p99 de duração individual de cerca de
-2,12 s, indicando dispersão e eventos de cauda relevantes. A independência de streams não
-elimina perda, retransmissão ou controle de congestionamento compartilhado pela conexão.
+2,12 s, indicando dispersão e eventos de cauda relevantes. A independência de streams, motivada pelo problema das conversações relacionadas
+discutido por Tanenbaum (p.~365), não elimina perda, retransmissão ou controle de
+congestionamento compartilhado pela conexão.
 
 \subsection{Variação entre rodadas e limites de inferência}
 
@@ -404,7 +468,8 @@ Esses resultados são compatíveis com benefícios de multiplexação e isolamen
 algumas condições, mas também evidenciam o custo de implementação e a variabilidade. Cinco
 repetições por teste, sobretudo cinco observações para latência da carga A, não bastam para
 caracterizar com precisão caudas raras ou provar significância estatística. A explicação
-baseada em TCP CUBIC é teoricamente pertinente, mas o algoritmo e a janela ativa não foram
+baseada em TCP CUBIC e no modelo AIMD (Tanenbaum, p.~363--366) é teoricamente pertinente
+e coerente em ordem de grandeza com T04 e T05, mas o algoritmo e a janela ativa não foram
 medidos; da mesma forma, não se comprovou o uso de BBR em QUIC. Portanto, as conclusões
 se restringem às versões e ao ambiente documentados e não devem ser extrapoladas para todos
 os servidores, clientes ou redes reais.
@@ -413,7 +478,20 @@ os servidores, clientes ou redes reais.
 \bibitem{tanenbaum}
 TANENBAUM, Andrew S.; WETHERALL, David J.
 \textit{Redes de Computadores}. 5. ed. São Paulo: Pearson Prentice Hall, 2011.
-Seções 6.5.11--6.6.2.
+Seções 6.5.10--6.5.11 (p.~363--366) e 6.6.1--6.6.2 (p.~366--368).
+
+\bibitem{ha2008}
+HA, S.; RHEE, I.; XU, L. CUBIC: A New TCP-Friendly High-Speed TCP Variant.
+\textit{ACM SIGOPS Operating Systems Review}, v. 42, n. 5, p. 64--74, 2008.
+(Referência citada por Tanenbaum, p.~364.)
+
+\bibitem{rfc8312}
+RHEE, I. et al. \textit{CUBIC for Fast Long-Distance Networks}. RFC 8312, 2018.
+\url{https://www.rfc-editor.org/rfc/rfc8312}
+
+\bibitem{bbr2016}
+CARDWELL, N. et al. BBR: Congestion-Based Congestion Control.
+\textit{ACM Queue}, v. 14, n. 5, 2016.
 
 \bibitem{rfc9110}
 FIELDING, R. et al. \textit{HTTP Semantics}. RFC 9110, 2022.

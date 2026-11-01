@@ -5,6 +5,10 @@ www/*.bin
 __pycache__/
 *.py[cod]
 C*/
-report.aux
-report.log
-report.out
+relatorio/report.aux
+relatorio/report.log
+relatorio/report.out
+relatorio/report.fls
+relatorio/report.fdb_latexmk
+relatorio/report.synctex.gz
+
