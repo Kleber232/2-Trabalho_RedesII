@@ -15,7 +15,7 @@ Ao lado: "tc = traffic control" e "qdisc = disciplina de enfileiramento".
 
 **Narração:**
 
-Agora quem continua sou eu, Vinicius. Com os contêineres prontos, falta fazer a rede se comportar como uma rede de verdade. Para isso, usamos o tc, o controle de tráfego do Linux. Todo pacote que sai de uma interface passa por uma fila, a qdisc. O netem é uma qdisc que atrasa os pacotes e pode descartar uma porcentagem deles. Como atua na saída, o atraso vale para um sentido só.
+Com os contêineres prontos, falta fazer a rede se comportar como uma rede de verdade. Para isso, usamos o tc, o controle de tráfego do Linux. Todo pacote que sai de uma interface passa por uma fila, a qe-disc. O netem é uma qe-disc que atrasa os pacotes e pode descartar uma porcentagem deles. Como atua na saída, o atraso vale para um sentido só.
 
 ## Cena 4.2 — Cenário LAN (0:25)
 
