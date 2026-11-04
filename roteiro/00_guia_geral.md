@@ -42,7 +42,7 @@ Se a voz pronunciar algum termo de forma estranha (por exemplo "QUIC", "netem", 
 | netem | "nê-tem" |
 | Caddy | "quédi" |
 | Nginx | "en-jin-ics" |
-| httpx | "agá tê tê pê xis" |
+| httpx | "agá tê tê pê" |
 | aioquic | "ai-ô-quic" |
 | CUBIC | "cúbic" |
 | qdisc | "quiú-disc" |

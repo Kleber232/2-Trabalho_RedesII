@@ -18,7 +18,7 @@ Diagrama da arquitetura (seção 2 do enunciado), adaptado com o cliente:
 
 **Narração:**
 
-Todo o ambiente roda em contêineres Docker, para isolar os testes da rede real. São quatro: um servidor por protocolo e um cliente, que executa o benchmark. Todos ficam na mesma rede virtual, onde injetamos atraso e perda.
+Para inicio da demonstração vou apresentar os conceitos e a configuração dos arquivo do Docker. Todo o ambiente roda em contêineres Docker, para isolar os testes da rede real. São quatro: um servidor por protocolo e um cliente, que executa o benchmark. Todos ficam na mesma rede virtual, onde injetamos atraso e perda.
 
 ## Cena 3.2 — O que é o Docker Compose e o que é um serviço (0:30)
 
@@ -71,11 +71,7 @@ networks:
 
 **Narração:**
 
-O cap add NET ADMIN concede ao contêiner a capacidade de administrar a rede. Sem ela, o tc falha com operação não permitida. É mais seguro que um contêiner privilegiado, porque libera só o necessário.
-
-O ports mapeia uma porta do computador para uma do contêiner: oito mil e oitenta dois pontos oitenta leva a porta oito mil e oitenta da máquina até a porta oitenta do Nginx, permitindo testar por fora com o navegador. O cliente não precisa disso, porque está na mesma rede.
-
-Os volumes ligam pastas do projeto ao contêiner, como os arquivos de teste e a configuração do Nginx, em modo somente leitura, o sufixo ro. E o networks coloca o serviço na rede net bench, do tipo bridge, um switch virtual. Cada contêiner tem IP fixo, e o DNS interno do Docker permite acessar o servidor pelo nome.
+Nesta parte das linhas 8 e 9 permite o contêiner ter a capacidade de administrar a rede. Sem ela, o tc falha com operação não permitida. É mais seguro que um contêiner privilegiado, porque libera só o necessário. O ports mapeia uma porta do computador para uma do contêiner: oito mil e oitenta dois pontos oitenta leva a porta oito mil e oitenta da máquina até a porta oitenta do engine-ex , permitindo testar por fora com o navegador. O cliente não precisa disso, porque está na mesma rede. Os volumes ligam pastas do projeto ao contêiner, como os arquivos de teste e a configuração do engine-ex, em modo somente leitura, o sufixo ro. E o networks coloca o serviço na rede net bench, do tipo bridge, um switch virtual. Cada contêiner tem IP fixo, e o DNS interno do Docker permite acessar o servidor pelo nome.
 
 ## Cena 3.4 — Diferenças dos outros serviços (0:25)
 
